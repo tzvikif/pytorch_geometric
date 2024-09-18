@@ -2,7 +2,9 @@ import os.path as osp
 
 import torch
 import torch.nn.functional as F
-
+import os
+import sys
+sys.path.append(os.getcwd())
 from torch_geometric.datasets import Planetoid
 from torch_geometric.explain import Explainer, GNNExplainer
 from torch_geometric.nn import GCNConv
@@ -54,11 +56,12 @@ explainer = Explainer(
 node_index = 10
 explanation = explainer(data.x, data.edge_index, index=node_index)
 print(f'Generated explanations in {explanation.available_explanations}')
+expl_sub_graph = explanation.get_explanation_subgraph()
+explanation.visualize_graph(None)
 
 path = 'feature_importance.png'
 explanation.visualize_feature_importance(path, top_k=10)
 print(f"Feature importance plot has been saved to '{path}'")
 
 path = 'subgraph.pdf'
-explanation.visualize_graph(path)
 print(f"Subgraph visualization plot has been saved to '{path}'")

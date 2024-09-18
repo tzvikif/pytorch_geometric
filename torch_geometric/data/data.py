@@ -725,7 +725,7 @@ class Data(BaseData, FeatureStore, GraphStore):
             edge_index, _, edge_mask = subgraph(
                 subset,
                 self.edge_index,
-                relabel_nodes=True,
+                relabel_nodes=False,
                 num_nodes=self.num_nodes,
                 return_edge_mask=True,
             )
@@ -749,6 +749,9 @@ class Data(BaseData, FeatureStore, GraphStore):
                     data.num_nodes = subset.size(0)
             elif self.is_node_attr(key):
                 cat_dim = self.__cat_dim__(key, value)
+                if key == 'target':
+                    target_nodes = torch.nonzero(subset).squeeze()
+                    data['target_nodes'] = target_nodes
                 data[key] = select(value, subset, dim=cat_dim)
             elif self.is_edge_attr(key):
                 cat_dim = self.__cat_dim__(key, value)

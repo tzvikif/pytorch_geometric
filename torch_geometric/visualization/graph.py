@@ -1,5 +1,6 @@
 from math import sqrt
 from typing import Any, List, Optional
+import numpy as np
 
 import torch
 from torch import Tensor
@@ -24,6 +25,9 @@ def has_graphviz() -> bool:
 def visualize_graph(
     edge_index: Tensor,
     edge_weight: Optional[Tensor] = None,
+    target: Optional[List[int]] = None,
+    target_nodes: Optional[List[int]] = None,
+    target_color: Optional[List[str]] = None,
     path: Optional[str] = None,
     backend: Optional[str] = None,
     node_labels: Optional[List[str]] = None,
@@ -61,7 +65,7 @@ def visualize_graph(
         backend = 'graphviz' if has_graphviz() else 'networkx'
 
     if backend.lower() == 'networkx':
-        return _visualize_graph_via_networkx(edge_index, edge_weight, path,
+        return _visualize_graph_via_networkx(edge_index, edge_weight, target, target_nodes, target_color, path,
                                              node_labels)
     elif backend.lower() == 'graphviz':
         return _visualize_graph_via_graphviz(edge_index, edge_weight, path,
@@ -106,6 +110,9 @@ def _visualize_graph_via_graphviz(
 def _visualize_graph_via_networkx(
     edge_index: Tensor,
     edge_weight: Tensor,
+    target: Optional[List[int]] = None,
+    target_nodes: Optional[List[int]] = None,
+    target_color: Optional[List[str]] = None,
     path: Optional[str] = None,
     node_labels: Optional[List[str]] = None,
 ) -> Any:
@@ -113,7 +120,7 @@ def _visualize_graph_via_networkx(
     import networkx as nx
 
     g = nx.DiGraph()
-    node_size = 800
+    node_size = 600
 
     for node in edge_index.view(-1).unique().tolist():
         g.add_node(node if node_labels is None else node_labels[node])
@@ -139,9 +146,13 @@ def _visualize_graph_via_networkx(
                 connectionstyle="arc3,rad=0.1",
             ),
         )
-
+    if target_color is not None:
+        tn = target_nodes.cpu().numpy()
+        colors = [target_color[target[np.where(tn==node)[0].item()].cpu().numpy()] for node in g.nodes()]
+    else:
+        colors = ['white']*len(g.nodes())
     nodes = nx.draw_networkx_nodes(g, pos, node_size=node_size,
-                                   node_color='white', margins=0.1)
+                                   node_color=colors, margins=0.1)
     nodes.set_edgecolor('black')
     nx.draw_networkx_labels(g, pos, font_size=10)
 
