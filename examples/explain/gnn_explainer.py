@@ -6,7 +6,7 @@ import os
 import sys
 sys.path.append(os.getcwd())
 from torch_geometric.datasets import Planetoid
-from torch_geometric.explain import Explainer, GNNExplainer
+from torch_geometric.explain import Explainer, GNNExplainer, ThresholdConfig
 from torch_geometric.nn import GCNConv
 
 dataset = 'Cora'
@@ -41,6 +41,11 @@ for epoch in range(1, 201):
     loss.backward()
     optimizer.step()
 
+threshold_config = ThresholdConfig(
+    threshold_type='topk',
+    value=5  # Keep top 2 elements
+)
+
 explainer = Explainer(
     model=model,
     algorithm=GNNExplainer(epochs=200),
@@ -52,15 +57,17 @@ explainer = Explainer(
         task_level='node',
         return_type='log_probs',
     ),
-)
-node_index = 10
+    threshold_config=threshold_config,
+    )
+
+node_index = 20
 explanation = explainer(data.x, data.edge_index, index=node_index)
 print(f'Generated explanations in {explanation.available_explanations}')
 expl_sub_graph = explanation.get_explanation_subgraph()
 explanation.visualize_graph(None)
 
 path = 'feature_importance.png'
-explanation.visualize_feature_importance(path, top_k=10)
+# explanation.visualize_feature_importance(path, top_k=10)
 print(f"Feature importance plot has been saved to '{path}'")
 
 path = 'subgraph.pdf'
