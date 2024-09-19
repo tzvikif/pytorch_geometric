@@ -110,14 +110,15 @@ def _visualize_graph_via_graphviz(
 def _visualize_graph_via_networkx(
     edge_index: Tensor,
     edge_weight: Tensor,
-    target: Optional[List[int]] = None,
+    targets: Optional[List[int]] = None,
     target_nodes: Optional[List[int]] = None,
-    target_color: Optional[List[str]] = None,
+    target_colors: Optional[List[str]] = None,
     path: Optional[str] = None,
     node_labels: Optional[List[str]] = None,
 ) -> Any:
     import matplotlib.pyplot as plt
     import networkx as nx
+    from matplotlib.lines import Line2D
 
     g = nx.DiGraph()
     node_size = 600
@@ -146,15 +147,31 @@ def _visualize_graph_via_networkx(
                 connectionstyle="arc3,rad=0.1",
             ),
         )
-    if target_color is not None:
+    target_to_color = {t:target_colors[t] for t in targets}
+
+    if target_colors is not None:
         tn = target_nodes.cpu().numpy()
-        colors = [target_color[target[np.where(tn==node)[0].item()].cpu().numpy()] for node in g.nodes()]
+        colors = [target_colors[targets[np.where(tn==node)[0].item()].cpu().numpy()] for node in g.nodes()]
     else:
         colors = ['white']*len(g.nodes())
     nodes = nx.draw_networkx_nodes(g, pos, node_size=node_size,
                                    node_color=colors, margins=0.1)
+    # ax = create_legend(target_to_color)
     nodes.set_edgecolor('black')
     nx.draw_networkx_labels(g, pos, font_size=10)
+
+    if target_colors is not None and targets is not None:
+        # Unique targets and corresponding colors
+        unique_targets = list(set(targets.cpu().numpy()))
+        target_to_color = {t: target_colors[t] for t in unique_targets}
+        
+        # Create custom legend handles
+        legend_elements = [Line2D([0], [0], marker='o', color='w', label=f'Target {t}',
+                                  markerfacecolor=target_to_color[t], markersize=10, markeredgecolor='black')
+                           for t in unique_targets]
+
+        # Add the legend to the plot
+        ax.legend(handles=legend_elements, loc='upper right')
 
     if path is not None:
         plt.savefig(path)

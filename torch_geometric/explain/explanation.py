@@ -261,8 +261,14 @@ class Explanation(Data, ExplanationMixin):
         expl_sub_graph = self.get_explanation_subgraph()
         # visualize_graph(self.edge_index, edge_mask, path, backend, node_labels)
         target_color = ['#87CEFA', '#FF7F50', '#98FB98', '#FFDF00', '#E6E6FA', '#DC143C', '#87CEEB', '#F4A460']
-        visualize_graph(self.edge_index, edge_mask, expl_sub_graph.target, expl_sub_graph.target_nodes, target_color, path, backend, node_labels)
-
+        visualize_graph(self.edge_index, 
+                        edge_mask, 
+                        expl_sub_graph.target, 
+                        expl_sub_graph.target_nodes, 
+                        target_color, 
+                        path, 
+                        backend, 
+                        node_labels)
 
 class HeteroExplanation(HeteroData, ExplanationMixin):
     r"""Holds all the obtained explanations of a heterogeneous graph.
