@@ -81,9 +81,10 @@ class ExplanationMixin:
         if threshold_config.type in [
                 ThresholdType.topk,
                 ThresholdType.topk_hard,
+                ThresholdType.topk_edges,
         ]:
             if threshold_config.value >= mask.numel():
-                if threshold_config.type == ThresholdType.topk:
+                if threshold_config.type == ThresholdType.topk or threshold_config.type == ThresholdType.topk_edges:
                     return mask
                 else:
                     return torch.ones_like(mask)
@@ -94,7 +95,7 @@ class ExplanationMixin:
             )
 
             out = torch.zeros_like(mask.flatten())
-            if threshold_config.type == ThresholdType.topk:
+            if threshold_config.type == ThresholdType.topk or ThresholdType.topk_edges:
                 out[index] = value
             else:
                 out[index] = 1.0
@@ -122,18 +123,20 @@ class ExplanationMixin:
         # Avoid modification of the original explanation:
         out = copy.copy(self)
 
-        # TODO: doesn't seem reasonable
-        # for store in out.node_stores:
-        #     store.node_mask = self._threshold_mask(store.get('node_mask'),
-        #                                            threshold_config)
+        if threshold_config.type != ThresholdType.topk_edges:
+            # TODO: doesn't seem reasonable
+            for store in out.node_stores:
+                store.node_mask = self._threshold_mask(store.get('node_mask'),
+                                                    threshold_config)
 
         for store in out.edge_stores:
             store.edge_mask = self._threshold_mask(store.get('edge_mask'),
                                                    threshold_config)
-        nodes = out.edge_index[:, out.edge_mask > 0].unique()
-        tz_node_mask = torch.zeros(out.x.shape[0], dtype=torch.bool, device=out.edge_mask.device)
-        tz_node_mask[nodes] = 1
-        out.tz_node_mask = tz_node_mask
+        if threshold_config.type == ThresholdType.topk_edges:
+            nodes = out.edge_index[:, out.edge_mask > 0].unique()
+            tz_node_mask = torch.zeros(out.x.shape[0], dtype=torch.bool, device=out.edge_mask.device)
+            tz_node_mask[nodes] = 1
+            out.node_mask = tz_node_mask
         return out
 
 
@@ -164,12 +167,12 @@ class Explanation(Data, ExplanationMixin):
         """
         node_mask = self.get('node_mask')
         if node_mask is not None:
-            tz_node_mask = self.get('tz_node_mask')
+            node_mask = self.get('node_mask')
             # node_mask = node_mask.sum(dim=-1) > 0
         edge_mask = self.get('edge_mask')
         if edge_mask is not None:
             edge_mask = edge_mask > 0
-        return self._apply_masks(tz_node_mask, edge_mask)
+        return self._apply_masks(node_mask, edge_mask)
 
     def get_complement_subgraph(self) -> 'Explanation':
         r"""Returns the induced subgraph, in which all nodes and edges with any

@@ -44,6 +44,7 @@ class ThresholdType(Enum):
     hard = 'hard'
     topk = 'topk'
     topk_hard = 'topk_hard'
+    topk_edges = 'topk_edges'
     # connected = 'connected'  # TODO
 
 
