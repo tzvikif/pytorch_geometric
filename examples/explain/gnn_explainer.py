@@ -43,7 +43,7 @@ for epoch in range(1, 201):
 
 threshold_config = ThresholdConfig(
     threshold_type='topk',
-    value=5  # Keep top 2 elements
+    value=200  # Keep top 2 elements
 )
 
 explainer = Explainer(
@@ -64,7 +64,7 @@ node_index = 20
 explanation = explainer(data.x, data.edge_index, index=node_index)
 print(f'Generated explanations in {explanation.available_explanations}')
 expl_sub_graph = explanation.get_explanation_subgraph()
-explanation.visualize_graph(None)
+explanation.visualize_graph(path=None, explained_node=node_index, khops=3)
 
 path = 'feature_importance.png'
 # explanation.visualize_feature_importance(path, top_k=10)

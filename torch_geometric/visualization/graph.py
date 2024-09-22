@@ -31,6 +31,8 @@ def visualize_graph(
     path: Optional[str] = None,
     backend: Optional[str] = None,
     node_labels: Optional[List[str]] = None,
+    explained_node: Optional[int] = None,
+    khops: Optional[int] = None
 ) -> Any:
     r"""Visualizes the graph given via :obj:`edge_index` and (optional)
     :obj:`edge_weight`.
@@ -55,7 +57,7 @@ def visualize_graph(
 
     if edge_weight is not None:  # Discard any edges with zero edge weight:
         mask = edge_weight > 1e-7
-        edge_index = edge_index[:, mask]
+        expln_edge_index = edge_index[:, mask]
         edge_weight = edge_weight[mask]
 
     if edge_weight is None:
@@ -65,10 +67,10 @@ def visualize_graph(
         backend = 'graphviz' if has_graphviz() else 'networkx'
 
     if backend.lower() == 'networkx':
-        return _visualize_graph_via_networkx(edge_index, edge_weight, target, target_nodes, target_color, path,
-                                             node_labels)
+        return _visualize_graph_via_networkx(expln_edge_index, edge_weight, target, target_nodes, target_color, path,
+                                             node_labels, edge_index, explained_node, khops)
     elif backend.lower() == 'graphviz':
-        return _visualize_graph_via_graphviz(edge_index, edge_weight, path,
+        return _visualize_graph_via_graphviz(expln_edge_index, edge_weight, path,
                                              node_labels)
 
     raise ValueError(f"Expected graph drawing backend to be in "
@@ -106,34 +108,84 @@ def _visualize_graph_via_graphviz(
 
     return g
 
+def subgraph_with_k_hops(edge_index: torch.Tensor, node_index: int, k: int):
+    import networkx as nx
+    """
+    Creates a subgraph with the specified node and all its neighbors within k hops.
+
+    Args:
+        edge_index (torch.Tensor): A tensor of shape (2, num_edges) representing the edges of the graph.
+        node_index (int): The node to center the subgraph on.
+        k (int): The number of hops to include.
+
+    Returns:
+        sub_edge_index (torch.Tensor): Edge index of the subgraph.
+        sub_nodes (torch.Tensor): List of nodes in the subgraph.
+    """
+    # Create a NetworkX graph from the edge index
+    g = nx.Graph()
+    edges = edge_index.t().tolist()  # Convert tensor to list of edges
+    g.add_edges_from(edges)
+
+    # Perform a BFS to find nodes within k hops from node_index
+    nodes_within_k_hops = nx.single_source_shortest_path_length(g, node_index, cutoff=k)
+    
+    # Extract the subgraph induced by these nodes
+    subgraph_nodes = list(nodes_within_k_hops.keys())
+    subgraph = g.subgraph(subgraph_nodes)
+    
+    # Convert the subgraph back to edge_index format
+    sub_edges = list(subgraph.edges())
+    if sub_edges:
+        sub_edge_index = torch.tensor(sub_edges).t().contiguous()  # Shape (2, num_edges)
+    else:
+        sub_edge_index = torch.empty((2, 0), dtype=torch.long)  # Handle case where no edges are found
+    
+    sub_nodes = torch.tensor(subgraph_nodes)
+    
+    return sub_edge_index, sub_nodes
 
 def _visualize_graph_via_networkx(
-    edge_index: Tensor,
+    xpln_edge_index: Tensor,
     edge_weight: Tensor,
     targets: Optional[List[int]] = None,
     target_nodes: Optional[List[int]] = None,
     target_colors: Optional[List[str]] = None,
     path: Optional[str] = None,
     node_labels: Optional[List[str]] = None,
+    edge_index: Tensor = None, 
+    explained_node: Optional[int] = None,
+    khops: Optional[int] = None,
 ) -> Any:
     import matplotlib.pyplot as plt
     import networkx as nx
     from matplotlib.lines import Line2D
 
+    sub_edge_index, sub_nodes = subgraph_with_k_hops(edge_index, explained_node, khops)
+    if khops is None:
+        node_size = 400
+    else:
+        node_size = 100
     g = nx.DiGraph()
-    node_size = 600
-
-    for node in edge_index.view(-1).unique().tolist():
+    expl_nodes = xpln_edge_index.view(-1).unique().tolist() 
+    for node in expl_nodes:
         g.add_node(node if node_labels is None else node_labels[node])
 
-    for (src, dst), w in zip(edge_index.t().tolist(), edge_weight.tolist()):
+    for node in list(sub_nodes.cpu().numpy()):
+        g.add_node(node)
+
+    for (src, dst), w in zip(xpln_edge_index.t().tolist(), edge_weight.tolist()):
         if node_labels is not None:
             src = node_labels[src]
             dst = node_labels[dst]
         g.add_edge(src, dst, alpha=w)
 
+    for (src, dst) in sub_edge_index.t().tolist():
+        g.add_edge(src, dst, alpha=0.3)
+
     ax = plt.gca()
     pos = nx.spring_layout(g)
+    # pos = nx.kamada_kawai_layout(g)
     for src, dst, data in g.edges(data=True):
         ax.annotate(
             '',
@@ -151,14 +203,17 @@ def _visualize_graph_via_networkx(
 
     if target_colors is not None:
         tn = target_nodes.cpu().numpy()
-        colors = [target_colors[targets[np.where(tn==node)[0].item()].cpu().numpy()] for node in g.nodes()]
+        colors = [target_colors[targets[np.where(tn==node)[0].item()].cpu().numpy()] if node in expl_nodes else 'white'  for node in g.nodes()]
+        margins = [0.1 if node in expl_nodes else 0.3 for node in g.nodes()]
     else:
         colors = ['white']*len(g.nodes())
     nodes = nx.draw_networkx_nodes(g, pos, node_size=node_size,
-                                   node_color=colors, margins=0.1)
-    # ax = create_legend(target_to_color)
+                                   node_color=colors, margins=0.1, linewidths=[0.5 if node!=explained_node else 2.0 for node in g.nodes()],
+                                   )
+    # nodes.set_edgecolor(['black' if node!=explained_node else 'blue' for node in g.nodes()])
     nodes.set_edgecolor('black')
-    nx.draw_networkx_labels(g, pos, font_size=10)
+    if khops is None:
+        nx.draw_networkx_labels(g, pos, font_size=6)
 
     if target_colors is not None and targets is not None:
         # Unique targets and corresponding colors

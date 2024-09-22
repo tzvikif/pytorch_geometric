@@ -242,6 +242,8 @@ class Explanation(Data, ExplanationMixin):
         path: Optional[str] = None,
         backend: Optional[str] = None,
         node_labels: Optional[List[str]] = None,
+        explained_node: Optional[int] = None,
+        khops: Optional[int] = None
     ) -> None:
         r"""Visualizes the explanation graph with edge opacity corresponding to
         edge importance.
@@ -273,7 +275,10 @@ class Explanation(Data, ExplanationMixin):
                         target_color, 
                         path, 
                         backend, 
-                        node_labels)
+                        node_labels,
+                        explained_node,
+                        khops
+                        )
 
 class HeteroExplanation(HeteroData, ExplanationMixin):
     r"""Holds all the obtained explanations of a heterogeneous graph.
